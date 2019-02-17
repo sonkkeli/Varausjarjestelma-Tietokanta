@@ -23,11 +23,11 @@ public class VarausjarjestelmaSovellus implements CommandLineRunner {
     public void run(String... args) throws Exception {
         Scanner lukija = new Scanner(System.in);
         // alustetaan tietokanta näillä tarvittaessa
-        luoHotellihuone();
-        luoVarauskalenteri();
-        luoVaraus();
-        luoLisavarusteet();        
-        luoVarausHuone();
+//        luoHotellihuone();
+//        luoVarauskalenteri();
+//        luoVaraus();
+//        luoLisavarusteet();        
+//        luoVarausHuone();
         
         tekstikayttoliittyma.kaynnista(lukija);
     }
@@ -55,12 +55,12 @@ public class VarausjarjestelmaSovellus implements CommandLineRunner {
                 + "id INTEGER PRIMARY KEY, "
                 + "alkupvm DATE NOT NULL, "
                 + "loppupvm DATE NOT NULL, "
-                + "kesto VARCHAR(15), "
+                + "kesto INTEGER, "
                 + "nimi VARCHAR(100) NOT NULL, "
                 + "puhnro VARCHAR(25) NOT NULL, "
                 + "sahkoposti VARCHAR(50) NOT NULL, "
-                + "lisavarusteita VARCHAR(20), "
-                + "huoneita VARCHAR(15) NOT NULL );";
+                + "lisavarusteita INTEGER, "
+                + "huoneita INTEGER NOT NULL );";
             conn.prepareStatement("DROP TABLE Varaus IF EXISTS;").executeUpdate();
             conn.prepareStatement(createTableVaraus).executeUpdate();
             

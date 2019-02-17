@@ -23,7 +23,8 @@ public class Varausjarjestelma {
     // tänne kaikki tietokantaa sorkkivat metodit, joita kutsutaan tekstikäyttöliittymästä
     
     public void lisaaHuone(String tyyppi, int numero, int hinta){
-        jbtemp.update("INSERT INTO Hotellihuone (numero, tyyppi, hinta) VALUES (?,?,?);", numero, tyyppi, hinta);
+        jbtemp.update("INSERT INTO Hotellihuone (numero, tyyppi, hinta) "
+                + "VALUES (?,?,?);", numero, tyyppi, hinta);
     }
     
     public List<String> listaaHuoneet(){
@@ -80,29 +81,15 @@ public class Varausjarjestelma {
         
         // lasketaan kesto päivinä:
         int kesto = laskePaivatValilla(alku, loppu);
-        
-        String kestoString = kesto + " päivä";
-        if (kesto > 1){
-            kestoString += "ä";
-        }
-        
-        String lisavarusteita = "0 lisävarustetta";
-        if (lisavarusteet.size() == 1){
-            lisavarusteita = "1 lisävaruste";
-        } else if (lisavarusteet.size()>0){
-            lisavarusteita = lisavarusteet.size() + " lisävarustetta";
-        }
-        String huonelkm = "1 huone";
-        if (huoneita > 1){
-            huonelkm = huoneita + " huonetta";
-        }
+        // lasketaan lisävarusteiden lukumäärä
+        int lisavarusteitaLkm = lisavarusteet.size();
         
         // lisätään varaus ja sen tiedot
         jbtemp.update("INSERT INTO Varaus (id, alkupvm, loppupvm, kesto, nimi, "
                 + "puhnro, sahkoposti, lisavarusteita, huoneita) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);", 
-                seuraavaVarausId, alku, loppu, kestoString, nimi, puhelinnumero, 
-                sahkoposti, lisavarusteita, huonelkm);
+                seuraavaVarausId, alku, loppu, kesto, nimi, puhelinnumero, 
+                sahkoposti, lisavarusteitaLkm, huoneita);
         
         // lisätään lisävarusteet
         for (String lisavaruste : lisavarusteet){
@@ -110,6 +97,7 @@ public class Varausjarjestelma {
                     + "VALUES (?, ?);", seuraavaVarausId, lisavaruste);
         }
         
+        // lisätään tiedot yhdistelmätauluun VarausHuone sekä varauskalenteriin
         int i = 0;
         while (i < huoneita){
             // selvitetään kalleimman ehdot täyttävän huoneen numero
@@ -126,7 +114,8 @@ public class Varausjarjestelma {
             
             // lisätään tiedot varauskalenteriin
             while (!alkupvm.isEqual(loppupvm)){
-                jbtemp.update("INSERT INTO Varauskalenteri (hotellihuone_numero, pvm) VALUES (?,?);", huoneenNumero, alkupvm);
+                jbtemp.update("INSERT INTO Varauskalenteri (hotellihuone_numero, pvm) "
+                        + "VALUES (?,?);", huoneenNumero, alkupvm);
                 alkupvm = alkupvm.plusDays(1);
                 // System.out.println("jäit luuppiin pelle");
             }
@@ -137,41 +126,60 @@ public class Varausjarjestelma {
     
     public void listaaVaraukset(){
         
+        // haetaan varausten tiedot
         List<String> varaukset = new ArrayList<>();
-        
         varaukset = jbtemp.query(
                 "SELECT * FROM Varaus ORDER BY id;",
                 (rs, rowNum) -> 
-                        rs.getString("nimi")+ ", " + 
-                        rs.getString("sahkoposti") + ", " + 
-                        rs.getString("alkupvm") + ", " + 
-                        rs.getString("loppupvm") + ", " + 
-                        rs.getString("kesto") + ", " + 
-                        rs.getString("lisavarusteita") + ", " + 
-                        rs.getString("huoneita") + ". Huoneet:");
+                        rs.getString("nimi")+ ";" + 
+                        rs.getString("sahkoposti") + ";" + 
+                        rs.getString("alkupvm") + ";" + 
+                        rs.getString("loppupvm") + ";" + 
+                        rs.getString("kesto") + ";" + 
+                        rs.getString("lisavarusteita") + ";" + 
+                        rs.getString("huoneita"));
         
+        // tulostetaan jokaisen varauksen hotellihuoneiden tiedot
         int idnumero = 1;
         while ((idnumero -1) < varaukset.size()){
+            String[] palat = varaukset.get(idnumero-1).split(";");
+            String tuloste = palat[0] + ", " + palat[1] + ", " + palat[2] 
+                    + ", "  + palat[3] + ", " + palat[4] + " päivä";
             
-            System.out.println(varaukset.get(idnumero-1));
+            if (Integer.valueOf(palat[4]) > 1){
+                tuloste += "ä";
+            }
+            
+            tuloste += ", " + palat[5] + " lisävaruste";
+            
+            if (Integer.valueOf(palat[5]) != 1){
+                tuloste += "tta";
+            }
+            
+            tuloste += ", " + palat[6] + " huone";
+            
+            if (Integer.valueOf(palat[6]) != 1){
+                tuloste += "tta";
+            }
+            
+            tuloste += ". Huoneet:";
+            
+            System.out.println(tuloste);
             
             List<String> hotellihuoneet = jbtemp.query(
                 "SELECT tyyppi, numero, hinta FROM Hotellihuone "
                 + "JOIN VarausHuone ON VarausHuone.hotellihuone_numero = Hotellihuone.numero "
                 + "WHERE varaus_id = ?;",
                 (rs, rowNum) -> 
-                        rs.getString("tyyppi")+ ", " + 
-                        rs.getString("numero") + ", " + 
-                        rs.getString("hinta") + " euroa", idnumero);
+                        rs.getString("tyyppi")+ ";" + 
+                        rs.getString("numero") + ";" + 
+                        rs.getString("hinta"), idnumero);
             
             int summa = 0 ;
             for (String hotellihuone : hotellihuoneet){
-                System.out.println("\t" + hotellihuone);
-                
-                String[] palat = hotellihuone.split(", ");
-                String[] hintaeuroa = palat[2].split(" ");
-                int hinta = Integer.valueOf(hintaeuroa[0]);
-                summa += hinta;
+                String[] palat1 = hotellihuone.split(";");
+                System.out.println("\t" + palat1[0] + ", " + palat1[1] + ", " + palat1[2] + " euroa");
+                summa += Integer.valueOf(palat1[2]) * Integer.valueOf(palat[4]);
             }
             System.out.println("\tYhteensä: " + summa + " euroa");
             System.out.println("");
@@ -288,16 +296,48 @@ public class Varausjarjestelma {
         List<String> parhaatAsiakkaat = new ArrayList<>();
         
         parhaatAsiakkaat = jbtemp.query(
-                "SELECT id, nimi, sahkoposti, puhnro, SUM(hinta) AS summa FROM Varaus "
+                "SELECT id, nimi, sahkoposti, puhnro, kesto * SUM(hinta) AS summa FROM Varaus "
                 + "LEFT OUTER JOIN VarausHuone ON VarausHuone.varaus_id = Varaus.id "
                 + "LEFT OUTER JOIN Hotellihuone ON VarausHuone.hotellihuone_numero = Hotellihuone.numero "
-                + "GROUP BY sahkoposti ORDER BY SUM(hinta) DESC;",
+                + "GROUP BY id ORDER BY summa DESC;",
                 (rs, rowNum) -> 
-                        rs.getString("nimi")+ ", " +
-                        rs.getString("sahkoposti") + ", " + 
-                        rs.getString("puhnro") + ", " + 
-                        rs.getString("summa") + " euroa");
+                        rs.getString("nimi")+ ";" +
+                        rs.getString("sahkoposti") + ";" + 
+                        rs.getString("puhnro") + ";" + 
+                        rs.getString("summa"));
         
-        return parhaatAsiakkaat;        
+        List<String> parhaatAsiakkaatTuplatPois = new ArrayList<>();
+        System.out.println(parhaatAsiakkaat);
+        
+        int i = 0; 
+        while (i < parhaatAsiakkaat.size()){
+            boolean loytyiko = false;
+            String[] palat = parhaatAsiakkaat.get(i).split(";");
+            int summa = Integer.valueOf(palat[3]);
+            
+            int j = 0;
+            while (j < parhaatAsiakkaatTuplatPois.size()){
+                String[] palat2 = parhaatAsiakkaatTuplatPois.get(j).split(", ");
+                if (palat2[1].equals(palat[1])){
+                    System.out.println("löytyy tupla");
+                    String[] palat3 = palat2[3].split(" ");
+                    summa += Integer.valueOf(palat3[0]);
+                    String uusiArvo = palat[0] + ", " + palat[1] + ", " + palat[2] + ", "  + summa + " euroa";
+                    parhaatAsiakkaatTuplatPois.set(j, uusiArvo);
+                    loytyiko = true;
+                }
+                j++;
+            }
+            
+            if (!loytyiko){
+                parhaatAsiakkaatTuplatPois.add(palat[0] + ", " + palat[1] + ", " + palat[2] + ", " + summa + " euroa");
+            }            
+            i++;
+        }
+        // tässä on nyt vielä sellainen ongelma, että jos asiakkaan nimi toistuu ja summa kasvaa niin, että "ohittaisi" toisen
+        // henkilön, näin ei tapahdu, koska listan sorttaus puuttuu... En sitä kuitenkaan osannut enää tehdä. Tässä olisi pitäny
+        // sittenkin olla asikastiedot erillisinä, jotta olisi pystynyt tämän tiedon saamaan ulos analyysistä. En kuitenkaan näin
+        // loppuvaiheessa projektia lähtenyt enää muokkaamaan asiaa näin, koska muutos olisi ollut niin iso...
+        return parhaatAsiakkaatTuplatPois;
     }
 }
