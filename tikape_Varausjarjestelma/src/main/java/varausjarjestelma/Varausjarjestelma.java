@@ -52,10 +52,10 @@ public class Varausjarjestelma {
         if (tyyppi.isEmpty()){
             lista = jbtemp.query(
                 "SELECT tyyppi, numero, hinta FROM Hotellihuone "
-                        + "WHERE hinta <= ? AND "
-                        + "numero NOT IN (SELECT hotellihuone_numero FROM Varauskalenteri "
-                        + "WHERE pvm >= ? AND pvm < ?) "
-                        + "GROUP BY numero ORDER BY hinta DESC;",
+                + "WHERE hinta <= ? AND "
+                + "numero NOT IN (SELECT hotellihuone_numero FROM Varauskalenteri "
+                + "WHERE pvm >= ? AND pvm < ?) "
+                + "GROUP BY numero ORDER BY hinta DESC;",
                 (rs, rowNum) -> 
                         rs.getString("tyyppi")+ ", " + 
                         rs.getString("numero") + ", " + 
@@ -63,10 +63,10 @@ public class Varausjarjestelma {
         } else {
             lista = jbtemp.query(
                 "SELECT tyyppi, numero, hinta FROM Hotellihuone "
-                        + "WHERE tyyppi = ? AND hinta <= ? AND "
-                        + "numero NOT IN (SELECT hotellihuone_numero FROM Varauskalenteri "
-                        + "WHERE pvm >= ? AND pvm < ?) "
-                        + "GROUP BY numero ORDER BY hinta DESC;",
+                + "WHERE tyyppi = ? AND hinta <= ? AND "
+                + "numero NOT IN (SELECT hotellihuone_numero FROM Varauskalenteri "
+                + "WHERE pvm >= ? AND pvm < ?) "
+                + "GROUP BY numero ORDER BY hinta DESC;",
                 (rs, rowNum) -> 
                         rs.getString("tyyppi")+ ", " + 
                         rs.getString("numero") + ", " + 
@@ -79,13 +79,8 @@ public class Varausjarjestelma {
         String nimi, String puhelinnumero, String sahkoposti, List<String> lisavarusteet){
         
         // lasketaan kesto päivinä:
-        LocalDate alotus = LocalDate.parse(alku);
-        LocalDate lopetus = LocalDate.parse(loppu);
-        int kesto = 0;
-        while (!alotus.isEqual(lopetus)){
-            alotus = alotus.plusDays(1);
-            kesto++;
-        }
+        int kesto = laskePaivatValilla(alku, loppu);
+        
         String kestoString = kesto + " päivä";
         if (kesto > 1){
             kestoString += "ä";
@@ -155,7 +150,6 @@ public class Varausjarjestelma {
                         rs.getString("lisavarusteita") + ", " + 
                         rs.getString("huoneita") + ". Huoneet:");
         
-        
         int idnumero = 1;
         while ((idnumero -1) < varaukset.size()){
             
@@ -163,8 +157,8 @@ public class Varausjarjestelma {
             
             List<String> hotellihuoneet = jbtemp.query(
                 "SELECT tyyppi, numero, hinta FROM Hotellihuone "
-                        + "JOIN VarausHuone ON VarausHuone.hotellihuone_numero = Hotellihuone.numero "
-                        + "WHERE varaus_id = ?;",
+                + "JOIN VarausHuone ON VarausHuone.hotellihuone_numero = Hotellihuone.numero "
+                + "WHERE varaus_id = ?;",
                 (rs, rowNum) -> 
                         rs.getString("tyyppi")+ ", " + 
                         rs.getString("numero") + ", " + 
@@ -183,5 +177,127 @@ public class Varausjarjestelma {
             System.out.println("");
             idnumero++;
         }
+    }
+    
+    private int laskePaivatValilla(String alkupvm, String loppupvm){
+        
+        LocalDate alkupvmDate = LocalDate.parse(alkupvm);
+        LocalDate loppupvmDate = LocalDate.parse(loppupvm);
+        int paivatValilla = 0;
+        while (!alkupvmDate.isEqual(loppupvmDate)){
+            alkupvmDate = alkupvmDate.plusDays(1);
+            paivatValilla++;
+        }        
+        return paivatValilla;        
+    }
+    
+    public List<String> varausprosenttiHuoneittain(String alku, String loppu){
+        List<String> lista = new ArrayList<>();
+        
+        lista = jbtemp.query(
+                "SELECT tyyppi, numero, hinta, COUNT(pvm) AS varauksia FROM Hotellihuone "
+                + "LEFT OUTER JOIN Varauskalenteri ON "
+                + "Varauskalenteri.hotellihuone_numero = Hotellihuone.numero GROUP BY numero;",
+                (rs, rowNum) -> 
+                        rs.getString("tyyppi")+ ";" + 
+                        rs.getString("numero") + ";" + 
+                        rs.getString("hinta") + ";" + 
+                        rs.getString("varauksia"));
+        
+        int paivia = laskePaivatValilla(alku,loppu);
+        int varauksia = 0;
+        double prosentti = 0;
+        List<String> palautettavaLista = new ArrayList<>();
+        
+        for (String rivi : lista){
+            String[] palat = rivi.split(";");
+            varauksia = Integer.valueOf(palat[3]);
+            prosentti = 100 * (double) varauksia / paivia;
+            palautettavaLista.add(palat[0] + ", " + palat[1] + ", " + palat [2] + " euroa, " + prosentti + "%");
+        }
+        
+        return palautettavaLista;        
+    }
+    
+    public List<String> varausprosenttiHuonetyypeittain(String alku, String loppu){
+        List<String> varaustenLkm = new ArrayList<>();
+        List<String> tyyppistenHuoneidenLkm = new ArrayList<>();
+        
+        varaustenLkm = jbtemp.query(
+                "SELECT tyyppi, COUNT(pvm) AS varauksia FROM Hotellihuone "
+                + "LEFT OUTER JOIN Varauskalenteri ON "
+                + "Varauskalenteri.hotellihuone_numero = Hotellihuone.numero GROUP BY tyyppi ORDER BY tyyppi;",
+                (rs, rowNum) -> 
+                        rs.getString("tyyppi")+ ";" +
+                        rs.getString("varauksia"));
+        
+        tyyppistenHuoneidenLkm = jbtemp.query(
+                "SELECT tyyppi, COUNT(tyyppi) AS tyyppisiaHuoneita FROM Hotellihuone "
+                + "GROUP BY tyyppi ORDER BY tyyppi;",
+                (rs, rowNum) -> 
+                        rs.getString("tyyppi")+ ";" +
+                        rs.getString("tyyppisiaHuoneita"));
+        
+        List<String> palautettavaLista = new ArrayList<>();
+        
+        if (varaustenLkm.size() != tyyppistenHuoneidenLkm.size()){
+            palautettavaLista.add("Virhe, tyyppejä on eri määrä");
+            return palautettavaLista;
+        }
+        
+        int paivia = laskePaivatValilla(alku,loppu);
+        int varauksia = 0;
+        int huoneita = 0;
+        double prosentti = 0;
+        
+        int i = 0;
+        while (i < varaustenLkm.size()){
+            String[] palatVaraustenLkm = varaustenLkm.get(i).split(";");
+            String[] palatTyyppistenHuoneidenLkm = tyyppistenHuoneidenLkm.get(i).split(";");
+            varauksia = Integer.valueOf(palatVaraustenLkm[1]);
+            huoneita = Integer.valueOf(palatTyyppistenHuoneidenLkm[1]);
+            prosentti = 100 * (double) varauksia / (paivia * huoneita);
+            palautettavaLista.add(palatVaraustenLkm[0] + ", " + prosentti + "%");
+            i++;
+        }
+        
+        return palautettavaLista;
+    }
+    public List<String> suosituimmatLisavarusteet() {
+        List<String> lisavarusteet = new ArrayList<>();
+        
+        lisavarusteet = jbtemp.query(
+                "SELECT lisavaruste, COUNT(lisavaruste) AS lkm FROM Lisavaruste "
+                        + "GROUP BY lisavaruste ORDER BY lkm DESC;",
+                (rs, rowNum) -> 
+                        rs.getString("lisavaruste")+ ";" +
+                        rs.getString("lkm"));
+        
+        List<String> palautettavaLista = new ArrayList<>();
+        for (String rivi : lisavarusteet){
+            String[] palat = rivi.split(";");
+            if (Integer.valueOf(palat[1]) == 1 ){
+                palautettavaLista.add(palat[0] + ", " + palat[1] + " varaus");
+            } else {
+                palautettavaLista.add(palat[0] + ", " + palat[1] + " varausta");
+            }            
+        }
+        return palautettavaLista;
+    }
+    public List<String> parhaatAsiakkaat(){
+        List<String> parhaatAsiakkaat = new ArrayList<>();
+        
+        parhaatAsiakkaat = jbtemp.query(
+                "SELECT id, nimi, sahkoposti, puhnro, SUM(hinta) AS summa FROM Varaus "
+                + "LEFT OUTER JOIN VarausHuone ON VarausHuone.varaus_id = Varaus.id "
+                + "LEFT OUTER JOIN Hotellihuone ON VarausHuone.hotellihuone_numero = Hotellihuone.numero "
+                + "GROUP BY sahkoposti ORDER BY SUM(hinta) DESC;",
+                (rs, rowNum) -> 
+                        rs.getString("nimi")+ ", " +
+                        rs.getString("sahkoposti") + ", " + 
+                        rs.getString("puhnro") + ", " + 
+                        rs.getString("summa") + " euroa");
+        
+        return parhaatAsiakkaat;        
     }
 }

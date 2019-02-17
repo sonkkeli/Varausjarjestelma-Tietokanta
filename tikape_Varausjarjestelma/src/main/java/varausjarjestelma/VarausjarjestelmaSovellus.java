@@ -23,11 +23,11 @@ public class VarausjarjestelmaSovellus implements CommandLineRunner {
     public void run(String... args) throws Exception {
         Scanner lukija = new Scanner(System.in);
         // alustetaan tietokanta näillä tarvittaessa
-//        luoHotellihuone();
-//        luoVarauskalenteri();
-//        luoVaraus();
-//        luoLisavarusteet();        
-//        luoVarausHuone();
+        luoHotellihuone();
+        luoVarauskalenteri();
+        luoVaraus();
+        luoLisavarusteet();        
+        luoVarausHuone();
         
         tekstikayttoliittyma.kaynnista(lukija);
     }
