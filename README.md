@@ -1,5 +1,7 @@
 # Varausjarjestelma-Tietokanta
 
+NOTE!!!! This database should modify to be working with DAO, rather than just SQL-queries, but it's still on going...
+
 Tietokantojen perusteet, ohjelmointiprojekti
 
 Tietokantojen perusteiden toinen laajempi harjoitustyö. Tehtävästä palautetaan sekä sovellus että PDF-muotoinen raportti. Sovellus palautetaan TMC:hen, raportti Moodleen. Raportti vertaisarvioidaan ja sovellusta tarkastelee kurssihenkilökunta sekä TMC.
